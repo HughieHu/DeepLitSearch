@@ -48,20 +48,25 @@ def test_prompts_carry_the_paper_figures_rubrics():
             'Output strict JSON only:\n{"score": 0 or 1, "reason": "<one sentence>"}')
 
 
-def test_prompt_contents_and_truncation():
-    p = judge.build_judge_prompt(3, "Q" * 2000, GT[3], "A" * 5000)
+def test_prompt_contents_without_truncation():
+    question = "Q" * 2000 + "\nQUESTION_END"
+    answer = "A" * 5000 + "\nANSWER_END"
+    p = judge.build_judge_prompt(3, question, GT[3], answer)
     assert "a_beats_b in paper Paper A: SST2 = 91.6 vs 89.4" in p
     assert "b_beats_a in paper Paper B: COPA = 85.0 vs 86.3" in p
     for t in (1, 2, 3, 4):
-        p = judge.build_judge_prompt(t, "Q" * 2000, GT[t], "A" * 5000)
-        assert "Q" * 1500 + "\n" in p and "Q" * 1501 not in p
-        assert "A" * 2000 + "\n" in p and "A" * 2001 not in p
+        p = judge.build_judge_prompt(t, question, GT[t], answer)
+        assert "QUESTION:\n" + question + "\n\n" in p
+        assert answer + "\n\n" in p
+    reasoning = "R" * 1000 + "\nREASONING_END"
+    long_gt3 = {"answer": {**GT[3]["answer"], "reasoning": reasoning}}
+    assert "reasoning: " + reasoning + "\n\n" in judge.build_judge_prompt(3, "q", long_gt3, "a")
     p4 = judge.build_judge_prompt(4, "q", GT[4], "a")
     assert p4.startswith("You are judging a research-paper agent's answer.\n\nQUESTION:\nq\n\nMODEL ANSWER:\na\n")
     assert "EXPECTED ANSWER:\nRepo X sets lr=0.1 in configs/a.yaml.\n\n" in p4
-    long_gt = {"answer": {"expected_answer": "E" * 2000}}
-    assert "E" * 1500 + "\n" in judge.build_judge_prompt(4, "q", long_gt, "a")
-    assert "E" * 1501 not in judge.build_judge_prompt(4, "q", long_gt, "a")
+    expected = "E" * 2000 + "\nEXPECTED_END"
+    long_gt4 = {"answer": {"expected_answer": expected}}
+    assert "EXPECTED ANSWER:\n" + expected + "\n\n" in judge.build_judge_prompt(4, "q", long_gt4, "a")
     assert "(no expected answer in GT)" in judge.build_judge_prompt(4, "q", {"answer": {}}, "a")
     assert "metrics (any subset would count): PSNR, SSIM" in judge.build_judge_prompt(1, "q", GT[1], "a")
     assert "verified_findings: M1 > M2 (acc: 9.1 vs 8.0)" in judge.build_judge_prompt(2, "q", GT[2], "a")
